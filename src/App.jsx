@@ -84,10 +84,74 @@ const KnowledgeGraph = ({
   chargeStrength,
   linkDistance,
   nodeOpacity,
-  setHoveredNodeLabel, // 新增
+  setHoveredNodeInfo,
 }) => {
   const graphRef = useRef(null);
   const containerRef = useRef(null);
+  const hoveredByMouse = useRef(false);
+
+  useEffect(() => {
+    let animationId;
+    let lastAutoHoverId = null;
+
+    function autoHighlight() {
+      if (!graphRef.current) return;
+      // 如果鼠标悬停则不自动高亮
+      if (hoveredByMouse.current) {
+        animationId = requestAnimationFrame(autoHighlight);
+        return;
+      }
+      const camera = graphRef.current.camera();
+      const nodes = data.nodes;
+      if (!camera || !nodes || nodes.length === 0) {
+        animationId = requestAnimationFrame(autoHighlight);
+        return;
+      }
+      // 相机朝向
+      const camPos = camera.position;
+      const camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+
+      // 找到视野中心最近的节点
+      let minAngle = Infinity;
+      let closestNode = null;
+      nodes.forEach((node) => {
+        const nodeVec = new THREE.Vector3(node.x, node.y, node.z).sub(camPos).normalize();
+        const angle = camDir.angleTo(nodeVec);
+        if (angle < minAngle) {
+          minAngle = angle;
+          closestNode = node;
+        }
+      });
+
+      // 只在节点变化时才触发
+      if (closestNode && closestNode.id !== lastAutoHoverId) {
+        lastAutoHoverId = closestNode.id;
+        // 解析主编号和子编号
+        let main = '', sub = '', current = '';
+        if (closestNode.type === 'core') {
+          const match = closestNode.name.match(/(\d+)/);
+          main = match ? match[1] : '';
+          current = main;
+        } else if (closestNode.type === 'sub') {
+          const match = closestNode.name.match(/(\d+)-(\d+)/);
+          if (match) {
+            main = match[1];
+            sub = match[2];
+            current = `${main}-${sub}`;
+          }
+        }
+        setHoveredNodeInfo({ main, sub, current, type: closestNode.type });
+      }
+      animationId = requestAnimationFrame(autoHighlight);
+    }
+
+    animationId = requestAnimationFrame(autoHighlight);
+
+    return () => {
+      if (animationId) cancelAnimationFrame(animationId);
+    };
+  }, [data, setHoveredNodeInfo]);
 
   useEffect(() => {
     if (!graphRef.current) {
@@ -117,14 +181,26 @@ const KnowledgeGraph = ({
           alert(`你点击了: ${node.name}`);
         })
         .onNodeHover((node) => {
-          // 新增：悬停时设置标签
-          if (setHoveredNodeLabel) {
+          // 鼠标悬停优先
+          hoveredByMouse.current = !!node;
+          if (setHoveredNodeInfo) {
             if (node && node.name) {
-              // 提取数字部分
-              const match = node.name.match(/\d+(-\d+)?/);
-              setHoveredNodeLabel(match ? match[0] : node.name);
+              let main = '', sub = '', current = '';
+              if (node.type === 'core') {
+                const match = node.name.match(/(\d+)/);
+                main = match ? match[1] : '';
+                current = main;
+              } else if (node.type === 'sub') {
+                const match = node.name.match(/(\d+)-(\d+)/);
+                if (match) {
+                  main = match[1];
+                  sub = match[2];
+                  current = `${main}-${sub}`;
+                }
+              }
+              setHoveredNodeInfo({ main, sub, current, type: node.type });
             } else {
-              setHoveredNodeLabel('');
+              setHoveredNodeInfo(null);
             }
           }
         });
@@ -152,17 +228,30 @@ const KnowledgeGraph = ({
       });
       // 新增：更新悬停事件
       graphRef.current.onNodeHover((node) => {
-        if (setHoveredNodeLabel) {
+        hoveredByMouse.current = !!node;
+        if (setHoveredNodeInfo) {
           if (node && node.name) {
-            const match = node.name.match(/\d+(-\d+)?/);
-            setHoveredNodeLabel(match ? match[0] : node.name);
+            let main = '', sub = '', current = '';
+            if (node.type === 'core') {
+              const match = node.name.match(/(\d+)/);
+              main = match ? match[1] : '';
+              current = main;
+            } else if (node.type === 'sub') {
+              const match = node.name.match(/(\d+)-(\d+)/);
+              if (match) {
+                main = match[1];
+                sub = match[2];
+                current = `${main}-${sub}`;
+              }
+            }
+            setHoveredNodeInfo({ main, sub, current, type: node.type });
           } else {
-            setHoveredNodeLabel('');
+            setHoveredNodeInfo(null);
           }
         }
       });
     }
-  }, [data, chargeStrength, linkDistance, nodeOpacity, setHoveredNodeLabel]);
+  }, [data, chargeStrength, linkDistance, nodeOpacity, setHoveredNodeInfo]);
 
   return (
     <div className="relative h-full">
@@ -183,7 +272,7 @@ const App = () => {
   const [data, setData] = useState(
     generateGraphData(numCoreNodes, numSubNodes, coreNodeSizeRange, subNodeSizeRange)
   );
-  const [hoveredNodeLabel, setHoveredNodeLabel] = useState('');
+  const [hoveredNodeInfo, setHoveredNodeInfo] = useState(null);
 
   const handleGenerate = () => {
     setData(
@@ -211,6 +300,133 @@ const App = () => {
     ]);
   };
 
+  // 标签渲染
+  const renderTagTabs = () => {
+    if (!hoveredNodeInfo || !hoveredNodeInfo.main) return null;
+    const { main, sub, current, type } = hoveredNodeInfo;
+    // 查找主球颜色
+    let mainColor = '#FFD93D';
+    const mainNode = data.nodes.find(n => n.type === 'core' && n.name.endsWith(main));
+    if (mainNode) mainColor = mainNode.color;
+
+    // 生成主标签
+    const tags = [{
+      label: main,
+      key: main,
+      highlight: type === 'core' || !sub,
+      level: 0,
+      color: mainColor,
+      progress: Math.random(), // 主标签进度
+    }];
+
+    // 生成当前子标签
+    let subNum = Number(sub);
+    if (subNum) {
+      tags.push({
+        label: `${main}-${subNum}`,
+        key: `${main}-${subNum}`,
+        highlight: true,
+        level: 1,
+        color: mainColor,
+        progress: Math.random(),
+      });
+      // 随机生成几个不同的子标签（不包括当前subNum和之前的）
+      const maxSub = data.nodes
+        .filter(n => n.type === 'sub' && n.name.startsWith(`子知识点 ${main}-`))
+        .map(n => {
+          const m = n.name.match(/-(\d+)$/);
+          return m ? Number(m[1]) : null;
+        })
+        .filter(Boolean)
+        .reduce((a, b) => Math.max(a, b), 0);
+
+      // 可选的sub编号
+      const availableSubs = [];
+      for (let i = 1; i <= maxSub; i++) {
+        if (i !== subNum && i > subNum) availableSubs.push(i);
+      }
+      // 随机选2~4个
+      const randomSubs = [];
+      const count = Math.min(availableSubs.length, Math.floor(Math.random() * 3) + 2);
+      while (randomSubs.length < count && availableSubs.length > 0) {
+        const idx = Math.floor(Math.random() * availableSubs.length);
+        randomSubs.push(availableSubs[idx]);
+        availableSubs.splice(idx, 1);
+      }
+      randomSubs.forEach(i => {
+        tags.push({
+          label: `${main}-${i}`,
+          key: `${main}-${i}`,
+          highlight: false,
+          level: 1,
+          color: mainColor,
+          progress: Math.random(),
+        });
+      });
+    }
+
+    // 阶梯排布+进度条
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        gap: 12,
+        minWidth: 60,
+      }}>
+        {tags.map((tag, idx) => (
+          <div
+            key={tag.key}
+            style={{
+              background: tag.highlight ? '#FFD93D' : tag.color,
+              color: tag.highlight ? '#222' : '#fff',
+              padding: '8px 20px 8px 20px',
+              borderRadius: '16px 16px 0 16px',
+              fontWeight: 'bold',
+              fontSize: '1.1rem',
+              boxShadow: tag.highlight ? '0 2px 8px rgba(0,0,0,0.18)' : 'none',
+              minWidth: 70,
+              textAlign: 'center',
+              marginLeft: tag.level * 32,
+              border: tag.highlight ? '2px solid #FFD93D' : '2px solid transparent',
+              transition: 'all 0.2s',
+              zIndex: tag.highlight ? 2 : 1,
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            {/* 进度条底色 */}
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                bottom: 0,
+                height: 6,
+                width: '100%',
+                background: 'rgba(255,255,255,0.15)',
+                borderRadius: 3,
+              }}
+            />
+            {/* 进度条前景 */}
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                bottom: 0,
+                height: 6,
+                width: `${Math.round(tag.progress * 100)}%`,
+                background: tag.highlight ? '#FF6B6B' : '#fff',
+                borderRadius: 3,
+                transition: 'width 0.3s',
+                opacity: 0.85,
+              }}
+            />
+            <span style={{ position: 'relative', zIndex: 2 }}>{tag.label}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="flex h-screen bg-gray-900 text-white">
@@ -222,26 +438,10 @@ const App = () => {
           right: 32,
           zIndex: 50,
           pointerEvents: 'none',
+          minHeight: 48,
         }}
       >
-        {hoveredNodeLabel && (
-          <div
-            style={{
-              background: '#FFD93D',
-              color: '#222',
-              padding: '8px 20px',
-              borderRadius: '16px 16px 0 16px',
-              fontWeight: 'bold',
-              fontSize: '1.2rem',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-              minWidth: 48,
-              textAlign: 'center',
-              transition: 'opacity 0.2s',
-            }}
-          >
-            {hoveredNodeLabel}
-          </div>
-        )}
+        {renderTagTabs()}
       </div>
       <div className="flex flex-col w-64 flex-shrink-0">
         {/* 调控面板 */}
@@ -348,7 +548,7 @@ const App = () => {
           chargeStrength={chargeStrength}
           linkDistance={linkDistance}
           nodeOpacity={nodeOpacity}
-          setHoveredNodeLabel={setHoveredNodeLabel} // 新增
+          setHoveredNodeInfo={setHoveredNodeInfo}
           onSnapshot={handleSnapshot}
         />
       </div>
