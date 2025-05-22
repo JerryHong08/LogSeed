@@ -209,7 +209,7 @@ const KnowledgeGraph = ({
       light.position.set(0, 10, 10);
       graphRef.current.scene().add(light);
 
-      graphRef.current.cameraPosition({ z: 300 });
+      graphRef.current.cameraPosition({ z: 500 });
     } else {
       graphRef.current.graphData(data);
       graphRef.current.d3Force('charge').strength(chargeStrength);
@@ -262,7 +262,7 @@ const KnowledgeGraph = ({
 
 // 主应用组件
 const App = () => {
-  const [numCoreNodes, setNumCoreNodes] = useState(10);
+  const [numCoreNodes, setNumCoreNodes] = useState(15);
   const [numSubNodes, setNumSubNodes] = useState(9);
   const [chargeStrength, setChargeStrength] = useState(-50);
   const [linkDistance, setLinkDistance] = useState(30);
@@ -369,62 +369,62 @@ const App = () => {
     // 阶梯排布+进度条
     return (
       <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-start',
-        gap: 12,
-        minWidth: 60,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'flex-start',
+      gap: 12,
+      minWidth: 60,
       }}>
-        {tags.map((tag, idx) => (
-          <div
-            key={tag.key}
-            style={{
-              background: tag.highlight ? '#FFD93D' : tag.color,
-              color: tag.highlight ? '#222' : '#fff',
-              padding: '8px 20px 8px 20px',
-              borderRadius: '16px 16px 0 16px',
-              fontWeight: 'bold',
-              fontSize: '1.1rem',
-              boxShadow: tag.highlight ? '0 2px 8px rgba(0,0,0,0.18)' : 'none',
-              minWidth: 70,
-              textAlign: 'center',
-              marginLeft: tag.level * 32,
-              border: tag.highlight ? '2px solid #FFD93D' : '2px solid transparent',
-              transition: 'all 0.2s',
-              zIndex: tag.highlight ? 2 : 1,
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
-            {/* 进度条底色 */}
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                bottom: 0,
-                height: 6,
-                width: '100%',
-                background: 'rgba(255,255,255,0.15)',
-                borderRadius: 3,
-              }}
-            />
-            {/* 进度条前景 */}
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                bottom: 0,
-                height: 6,
-                width: `${Math.round(tag.progress * 100)}%`,
-                background: tag.highlight ? '#FF6B6B' : '#fff',
-                borderRadius: 3,
-                transition: 'width 0.3s',
-                opacity: 0.85,
-              }}
-            />
-            <span style={{ position: 'relative', zIndex: 2 }}>{tag.label}</span>
-          </div>
-        ))}
+      {tags.map((tag, idx) => (
+        <div
+        key={tag.key}
+        style={{
+          background: tag.highlight ? '#FFD93D' : tag.color,
+          color: tag.highlight ? '#222' : '#fff',
+          padding: '8px 20px 8px 20px',
+          borderRadius: '16px 16px 0 16px',
+          fontWeight: 'bold',
+          fontSize: '1.1rem',
+          boxShadow: tag.highlight ? '0 2px 8px rgba(0,0,0,0.18)' : 'none',
+          minWidth: 70,
+          textAlign: 'center',
+          marginLeft: tag.level * 32,
+          border: tag.highlight ? '2px solid #FFD93D' : '2px solid transparent',
+          transition: 'all 0.2s',
+          zIndex: tag.highlight ? 2 : 1,
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+        >
+        {/* 进度条底色 */}
+        <div
+          style={{
+          position: 'absolute',
+          left: 0,
+          bottom: 0,
+          height: 6,
+          width: '100%',
+          background: 'rgba(255,255,255,0.15)',
+          borderRadius: 3,
+          }}
+        />
+        {/* 进度条前景 */}
+        <div
+          style={{
+          position: 'absolute',
+          left: 0,
+          bottom: 0,
+          height: 6,
+          width: `${Math.round(tag.progress * 100)}%`,
+          background: '#22c55e',
+          borderRadius: 3,
+          transition: 'width 0.3s',
+          opacity: 0.85,
+          }}
+        />
+        <span style={{ position: 'relative', zIndex: 2 }}>{tag.label}</span>
+        </div>
+      ))}
       </div>
     );
   };
@@ -457,7 +457,7 @@ const App = () => {
             borderRadius: '0 0 8px 0',
             position: 'absolute',
             left: panelCollapsed ? 0 : 256,
-            top: 0,
+            top: 32, // 修改这里，原来是 top: 0
             zIndex: 100,
             cursor: 'pointer',
             transition: 'left 0.3s',
