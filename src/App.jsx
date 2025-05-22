@@ -273,6 +273,7 @@ const App = () => {
     generateGraphData(numCoreNodes, numSubNodes, coreNodeSizeRange, subNodeSizeRange)
   );
   const [hoveredNodeInfo, setHoveredNodeInfo] = useState(null);
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
 
   const handleGenerate = () => {
     setData(
@@ -443,9 +444,37 @@ const App = () => {
       >
         {renderTagTabs()}
       </div>
-      <div className="flex flex-col w-64 flex-shrink-0">
+      <div className={`flex flex-col ${panelCollapsed ? 'w-6' : 'w-64'} flex-shrink-0 transition-all duration-300`}>
+        {/* 控制面板收缩按钮 */}
+        <button
+          onClick={() => setPanelCollapsed(c => !c)}
+          style={{
+            width: 24,
+            height: 32,
+            background: '#222',
+            color: '#FFD93D',
+            border: 'none',
+            borderRadius: '0 0 8px 0',
+            position: 'absolute',
+            left: panelCollapsed ? 0 : 256,
+            top: 0,
+            zIndex: 100,
+            cursor: 'pointer',
+            transition: 'left 0.3s',
+          }}
+          tabIndex={0}
+          aria-label={panelCollapsed ? '展开面板' : '收起面板'}
+        >
+          {panelCollapsed ? '▶' : '◀'}
+        </button>
         {/* 调控面板 */}
-        <div className="p-4 bg-gray-800 shadow-lg flex-1 overflow-y-auto">
+        <div
+          className={`p-4 bg-gray-800 shadow-lg flex-1 overflow-y-auto transition-all duration-300`}
+          style={{
+            display: panelCollapsed ? 'none' : 'block',
+            minWidth: 100,
+          }}
+        >
           <h2 className="text-xl font-bold mb-4">调控面板</h2>
           <div className="mb-4">
             <label className="block mb-1">核心节点数: {numCoreNodes}</label>
