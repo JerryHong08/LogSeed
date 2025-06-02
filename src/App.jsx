@@ -274,25 +274,32 @@ const App = () => {
   const [nodeOpacity, setNodeOpacity] = useState(1);
   const [coreNodeSizeRange, setCoreNodeSizeRange] = useState([15, 20]);
   const [subNodeSizeRange, setSubNodeSizeRange] = useState([5, 10]);
-  const [data, setData] = useState(
-    generateGraphData(numCoreNodes, numSubNodes, coreNodeSizeRange, subNodeSizeRange)
-  );
+  const [data, setData] = useState(null); // 初始为null，不生成本地样例数据
   const [hoveredNodeInfo, setHoveredNodeInfo] = useState(null);
-  const [panelCollapsed, setPanelCollapsed] = useState(false);
-  const [identity, setIdentity] = useState('小明 CS本科生');
+  const [identity, setIdentity] = useState('');
+  const [showIdentityModal, setShowIdentityModal] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [panelCollapsed, setPanelCollapsed] = useState(true); // 默认合上
 
-  // 新增：加载时自动生成AI任务数据
-  useEffect(() => {
-    handleGenerate();
-    // eslint-disable-next-line
-  }, []);
+  // 首次身份输入提交
+  const handleIdentitySubmit = async (e) => {
+    e.preventDefault();
+    if (identity.trim()) {
+      setShowIdentityModal(false);
+      setPanelCollapsed(true);
+      setLoading(true);
+      await handleGenerate(identity);
+      setLoading(false);
+    }
+  };
 
-  // 新增：AI生成任务并构建图谱
-  const handleGenerate = async () => {
+  // AI生成任务并构建图谱
+  const handleGenerate = async (customIdentity) => {
+    setLoading(true);
+    const idt = typeof customIdentity === 'string' ? customIdentity : identity;
     try {
-      // 调用你的后端API（FastAPI等）
       const res = await fetch(
-        `http://localhost:8000/generate_tasks?identity=${encodeURIComponent(identity)}&coreNum=${numCoreNodes}&subNum=${numSubNodes}`
+        `http://localhost:8000/generate_tasks?identity=${encodeURIComponent(idt)}&coreNum=${numCoreNodes}&subNum=${numSubNodes}`
       );
       const result = await res.json();
       if (result && Array.isArray(result.core_tasks) && Array.isArray(result.sub_tasks_list)) {
@@ -305,24 +312,30 @@ const App = () => {
           )
         );
       } else {
-        // 失败时降级为本地生成
-        setData(
-          generateGraphData(numCoreNodes, numSubNodes, coreNodeSizeRange, subNodeSizeRange)
-        );
+        setData(null); // 失败时不显示任何图谱
       }
     } catch (e) {
-      setData(
-        generateGraphData(numCoreNodes, numSubNodes, coreNodeSizeRange, subNodeSizeRange)
-      );
+      setData(null); // 失败时不显示任何图谱
     }
+    setLoading(false);
   };
 
-  // 标签渲染（已被替换为更通用的主节点+所有子节点阶梯排布逻辑）
-  // 现在的 renderTagTabs 逻辑如下，已不再用 main/sub/current，而是直接用节点 id/type，显示主节点和所有同组子节点：
-  // 这样可以适配 AI 生成的真实内容和阶梯排布、进度条不抖动。
+  // 重新生成时也loading
+  const handleRegenerate = async () => {
+    setPanelCollapsed(true);
+    setLoading(true);
+    await handleGenerate();
+    setLoading(false);
+  };
 
+  // 页面首次加载不再自动生成，等身份输入
+  useEffect(() => {
+    // ...不再自动调用 handleGenerate...
+  }, []);
+
+  // 标签渲染
   const renderTagTabs = () => {
-    if (!hoveredNodeInfo) return null;
+    if (!data || !hoveredNodeInfo) return null;
     const node = data.nodes.find(n => n.id === hoveredNodeInfo.id);
     if (!node) return null;
 
@@ -445,6 +458,56 @@ const App = () => {
 
   return (
     <div className="flex h-screen bg-gray-900 text-white">
+      {/* 身份输入弹窗 */}
+      {showIdentityModal && (
+        <div style={{
+          position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh',
+          background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <form
+            onSubmit={handleIdentitySubmit}
+            style={{
+              background: '#222', padding: 32, borderRadius: 16, minWidth: 320, boxShadow: '0 4px 32px #0008'
+            }}
+          >
+            <h2 style={{ fontSize: 22, fontWeight: 'bold', marginBottom: 24 }}>请输入你的身份</h2>
+            <input
+              type="text"
+              value={identity}
+              onChange={e => setIdentity(e.target.value)}
+              placeholder="如：小明 CS本科生"
+              style={{
+                width: '100%', padding: 12, borderRadius: 8, border: 'none', fontSize: 18, marginBottom: 24, color: '#222'
+              }}
+              autoFocus
+            />
+            <button
+              type="submit"
+              style={{
+                width: '100%', background: '#FFD93D', color: '#222', fontWeight: 'bold',
+                border: 'none', borderRadius: 8, padding: 12, fontSize: 18, cursor: 'pointer'
+              }}
+            >
+              开始定制
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* loading 遮罩 */}
+      {loading && (
+        <div style={{
+          position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh',
+          background: 'rgba(0,0,0,0.7)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div style={{
+            background: '#222', color: '#FFD93D', fontSize: 22, padding: 32, borderRadius: 16, fontWeight: 'bold'
+          }}>
+            正在为你定制你的学习计划...
+          </div>
+        </div>
+      )}
+
       {/* 右上角标签 */}
       <div
         style={{
@@ -471,7 +534,7 @@ const App = () => {
             borderRadius: '0 0 8px 0',
             position: 'absolute',
             left: panelCollapsed ? 0 : 256,
-            top: 32, // 修改这里，原来是 top: 0
+            top: 32,
             zIndex: 100,
             cursor: 'pointer',
             transition: 'left 0.3s',
@@ -490,16 +553,8 @@ const App = () => {
           }}
         >
           <h2 className="text-xl font-bold mb-4">调控面板</h2>
-          {/* 新增身份输入 */}
-          <div className="mb-4">
-            <label className="block mb-1">身份（如“小明 CS本科生”）</label>
-            <input
-              type="text"
-              value={identity}
-              onChange={e => setIdentity(e.target.value)}
-              className="w-full px-2 py-1 rounded text-black"
-              placeholder="请输入身份"
-            />
+          <div className="mb-4" style={{ color: '#FFD93D', fontWeight: 'bold' }}>
+            当前身份：{identity}
           </div>
           <div className="mb-4">
             <label className="block mb-1">核心节点数: {numCoreNodes}</label>
@@ -588,22 +643,23 @@ const App = () => {
             />
           </div>
           <button
-            onClick={handleGenerate}
+            onClick={handleRegenerate}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded"
           >
             重新生成图谱
           </button>
         </div>
-
       </div>
       <div className="flex-1 h-full">
-        <KnowledgeGraph
-          data={data}
-          chargeStrength={chargeStrength}
-          linkDistance={linkDistance}
-          nodeOpacity={nodeOpacity}
-          setHoveredNodeInfo={setHoveredNodeInfo}
-        />
+        {data && (
+          <KnowledgeGraph
+            data={data}
+            chargeStrength={chargeStrength}
+            linkDistance={linkDistance}
+            nodeOpacity={nodeOpacity}
+            setHoveredNodeInfo={setHoveredNodeInfo}
+          />
+        )}
       </div>
     </div>
   );

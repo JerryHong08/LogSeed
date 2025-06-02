@@ -48,7 +48,7 @@ def initialize_client(botselect):
     else:
         raise ValueError(f"Unsupported botselect: {botselect}")
 
-def generate_task_plan(identity, num_core_tasks, num_sub_tasks, botselect="deepseek"):
+def generate_task_plan(identity, num_core_tasks, num_sub_tasks, botselect="siliconflow"):
     client, model = initialize_client(botselect)
     user_prompt = (
         f"用户身份：{identity}\n"
