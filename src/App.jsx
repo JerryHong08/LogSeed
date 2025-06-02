@@ -142,6 +142,39 @@ const KnowledgeGraph = ({
   const graphRef = useRef(null);
   const containerRef = useRef(null);
   const hoveredByMouse = useRef(false);
+  const [highlightNodeId, setHighlightNodeId] = useState(null);
+
+  // 优化1：只在 highlightNodeId/data 变化时重建 nodeThreeObject
+  useEffect(() => {
+    if (!graphRef.current) return;
+    graphRef.current.nodeThreeObject((node) => {
+      const isHighlight = node.id === highlightNodeId;
+      const sphere = new THREE.Mesh(
+        new THREE.SphereGeometry(isHighlight ? node.size : node.size / 2),
+        new THREE.MeshLambertMaterial({
+          color: node.color,
+          transparent: true,
+          opacity: nodeOpacity,
+          emissive: isHighlight ? 0xffff00 : 0x000000,
+          emissiveIntensity: isHighlight ? 0.7 : 0,
+        })
+      );
+      if (isHighlight) {
+        const glow = new THREE.Mesh(
+          new THREE.SphereGeometry(node.size * 1.2),
+          new THREE.MeshBasicMaterial({
+            color: 0xffff00,
+            transparent: true,
+            opacity: 0.25,
+          })
+        );
+        sphere.add(glow);
+      }
+      return sphere;
+    });
+    // 只更新 nodeThreeObject，不重建整个图
+    // eslint-disable-next-line
+  }, [highlightNodeId, nodeOpacity, data]);
 
   useEffect(() => {
     let animationId;
@@ -174,6 +207,7 @@ const KnowledgeGraph = ({
 
       if (closestNode) {
         setHoveredNodeInfo({ id: closestNode.id, type: closestNode.type });
+        setHighlightNodeId(closestNode.id);
       }
       animationId = requestAnimationFrame(autoHighlight);
     }
@@ -190,17 +224,7 @@ const KnowledgeGraph = ({
       graphRef.current = ForceGraph3D()(containerRef.current)
         .graphData(data)
         .nodeLabel('name')
-        .nodeThreeObject((node) => {
-          const sphere = new THREE.Mesh(
-            new THREE.SphereGeometry(node.size / 2),
-            new THREE.MeshLambertMaterial({
-              color: node.color,
-              transparent: true,
-              opacity: nodeOpacity,
-            })
-          );
-          return sphere;
-        })
+        // nodeThreeObject 由上面 useEffect 控制
         .linkWidth(1)
         .backgroundColor('#000000')
         .forceEngine('d3')
@@ -210,15 +234,18 @@ const KnowledgeGraph = ({
         .d3Force('radial', forceRadial(100).strength(0.1))
         .warmupTicks(100)
         .onNodeClick((node) => {
-          alert(`你点击了: ${node.name}`);
+          setHighlightNodeId(node.id);
+          setHoveredNodeInfo({ id: node.id, type: node.type });
         })
         .onNodeHover((node) => {
           hoveredByMouse.current = !!node;
           if (setHoveredNodeInfo) {
             if (node) {
               setHoveredNodeInfo({ id: node.id, type: node.type });
+              setHighlightNodeId(node.id);
             } else {
               setHoveredNodeInfo(null);
+              setHighlightNodeId(null);
             }
           }
         });
@@ -233,25 +260,20 @@ const KnowledgeGraph = ({
       graphRef.current.d3Force('charge').strength(chargeStrength);
       graphRef.current.d3Force('link').distance(linkDistance);
       graphRef.current.d3Force('radial').strength(0.1);
-      graphRef.current.nodeThreeObject((node) => {
-        const sphere = new THREE.Mesh(
-          new THREE.SphereGeometry(node.size / 2),
-          new THREE.MeshLambertMaterial({
-            color: node.color,
-            transparent: true,
-            opacity: nodeOpacity,
-          })
-        );
-        return sphere;
+      // nodeThreeObject 由上面 useEffect 控制
+      graphRef.current.onNodeClick((node) => {
+        setHighlightNodeId(node.id);
+        setHoveredNodeInfo({ id: node.id, type: node.type });
       });
-      // 新增：更新悬停事件
       graphRef.current.onNodeHover((node) => {
         hoveredByMouse.current = !!node;
         if (setHoveredNodeInfo) {
           if (node) {
             setHoveredNodeInfo({ id: node.id, type: node.type });
+            setHighlightNodeId(node.id);
           } else {
             setHoveredNodeInfo(null);
+            setHighlightNodeId(null);
           }
         }
       });
@@ -299,7 +321,7 @@ const App = () => {
     const idt = typeof customIdentity === 'string' ? customIdentity : identity;
     try {
       const res = await fetch(
-        `http://localhost:8000/generate_tasks?identity=${encodeURIComponent(idt)}&coreNum=${numCoreNodes}&subNum=${numSubNodes}`
+        `http://172.16.76.149:8000/generate_tasks?identity=${encodeURIComponent(idt)}&coreNum=${numCoreNodes}&subNum=${numSubNodes}`
       );
       const result = await res.json();
       if (result && Array.isArray(result.core_tasks) && Array.isArray(result.sub_tasks_list)) {
@@ -394,64 +416,67 @@ const App = () => {
       });
     }
 
+    // 修改：主标签靠左，子标签靠右
     return (
       <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'flex-start',
-      gap: 12,
-      minWidth: 60,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-end', // 右对齐
+        gap: 12,
+        minWidth: 60,
       }}>
-      {tags.map((tag) => (
-        <div
-        key={tag.key}
-        style={{
-          background: tag.highlight ? '#FFD93D' : tag.color,
-          color: tag.highlight ? '#222' : '#fff',
-          padding: '8px 20px 8px 20px',
-          borderRadius: '16px 16px 0 16px',
-          fontWeight: 'bold',
-          fontSize: '1.1rem',
-          boxShadow: tag.highlight ? '0 2px 8px rgba(0,0,0,0.18)' : 'none',
-          minWidth: 70,
-          textAlign: 'center',
-          marginLeft: tag.level * 32,
-          border: tag.highlight ? '2px solid #FFD93D' : '2px solid transparent',
-          transition: 'all 0.2s',
-          zIndex: tag.highlight ? 2 : 1,
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-        >
-        {/* 进度条底色 */}
-        <div
-          style={{
-          position: 'absolute',
-          left: 0,
-          bottom: 0,
-          height: 6,
-          width: '100%',
-          background: 'rgba(255,255,255,0.15)',
-          borderRadius: 3,
-          }}
-        />
-        {/* 进度条前景 */}
-        <div
-          style={{
-          position: 'absolute',
-          left: 0,
-          bottom: 0,
-          height: 6,
-          width: `${Math.round((tag.progress || 0) * 100)}%`,
-          background: '#22c55e',
-          borderRadius: 3,
-          transition: 'width 0.3s',
-          opacity: 0.85,
-          }}
-        />
-        <span style={{ position: 'relative', zIndex: 2 }}>{tag.label}</span>
-        </div>
-      ))}
+        {tags.map((tag) => (
+          <div
+            key={tag.key}
+            style={{
+              background: tag.highlight ? '#FFD93D' : tag.color,
+              color: tag.highlight ? '#222' : '#fff',
+              padding: '8px 20px 8px 20px',
+              borderRadius: '16px 16px 0 16px',
+              fontWeight: 'bold',
+              fontSize: '1.1rem',
+              boxShadow: tag.highlight ? '0 2px 8px rgba(0,0,0,0.18)' : 'none',
+              minWidth: 70,
+              textAlign: tag.level === 1 ? 'right' : 'left', // 主标签左对齐，子标签右对齐
+              marginLeft: tag.level === 0 ? 0 : 32,
+              marginRight: tag.level === 1 ? 0 : 32,
+              border: tag.highlight ? '2px solid #FFD93D' : '2px solid transparent',
+              transition: 'all 0.2s',
+              zIndex: tag.highlight ? 2 : 1,
+              position: 'relative',
+              overflow: 'hidden',
+              alignSelf: tag.level === 1 ? 'flex-end' : 'flex-start', // 子标签右对齐
+            }}
+          >
+            {/* 进度条底色 */}
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                bottom: 0,
+                height: 6,
+                width: '100%',
+                background: 'rgba(255,255,255,0.15)',
+                borderRadius: 3,
+              }}
+            />
+            {/* 进度条前景 */}
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                bottom: 0,
+                height: 6,
+                width: `${Math.round((tag.progress || 0) * 100)}%`,
+                background: '#22c55e',
+                borderRadius: 3,
+                transition: 'width 0.3s',
+                opacity: 0.85,
+              }}
+            />
+            <span style={{ position: 'relative', zIndex: 2 }}>{tag.label}</span>
+          </div>
+        ))}
       </div>
     );
   };
@@ -475,9 +500,17 @@ const App = () => {
               type="text"
               value={identity}
               onChange={e => setIdentity(e.target.value)}
-              placeholder="如：小明 CS本科生"
+              placeholder="如：工业设计大三"
               style={{
-                width: '100%', padding: 12, borderRadius: 8, border: 'none', fontSize: 18, marginBottom: 24, color: '#222'
+                width: '100%',
+                padding: 12,
+                borderRadius: 8,
+                border: 'none',
+                fontSize: 18,
+                marginBottom: 24,
+                color: '#FDFDFD', // 修改为黄色
+                background: '#222', // 建议背景深色
+                fontWeight: 'bold', // 可选：让黄色更醒目
               }}
               autoFocus
             />
