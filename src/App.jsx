@@ -78,6 +78,59 @@ const generateGraphData = (
   return { nodes, links };
 };
 
+// 新增：根据AI返回的任务数据生成图谱数据
+const buildGraphDataFromTasks = (coreTasks, subTasksList, coreNodeSizeRange, subNodeSizeRange) => {
+  const nodes = [];
+  const links = [];
+  const colors = [
+    '#FF6B6B', '#4ECDC4', '#FFD93D', '#6B48FF', '#FF9F40',
+    '#00C4FF', '#F06292', '#A2FF86', '#FF5C5C', '#40C4FF',
+  ];
+  coreTasks.forEach((core, i) => {
+    nodes.push({
+      id: `core_${i}`,
+      name: core,
+      size: coreNodeSizeRange[0] + Math.random() * (coreNodeSizeRange[1] - coreNodeSizeRange[0]),
+      color: colors[i % colors.length],
+      type: 'core',
+      progress: Math.random(), // 固定进度
+    });
+    (subTasksList[i] || []).forEach((sub, j) => {
+      const subNodeId = `core_${i}_sub_${j}`;
+      nodes.push({
+        id: subNodeId,
+        name: sub,
+        size: subNodeSizeRange[0] + Math.random() * (subNodeSizeRange[1] - subNodeSizeRange[0]),
+        color: colors[i % colors.length],
+        type: 'sub',
+        parentId: `core_${i}`,
+        progress: Math.random(), // 固定进度
+      });
+      links.push({ source: `core_${i}`, target: subNodeId });
+    });
+  });
+  // 随机核心节点间连线
+  for (let i = 0; i < coreTasks.length; i++) {
+    for (let j = i + 1; j < coreTasks.length; j++) {
+      if (Math.random() < 0.3) {
+        links.push({ source: `core_${i}`, target: `core_${j}` });
+      }
+    }
+  }
+  // 随机球面坐标
+  nodes.forEach((node) => {
+    const u = Math.random();
+    const v = Math.random();
+    const theta = 2 * Math.PI * u;
+    const phi = Math.acos(2 * v - 1);
+    const radius = 100 + Math.random() * 20;
+    node.x = radius * Math.sin(phi) * Math.cos(theta);
+    node.y = radius * Math.sin(phi) * Math.sin(theta);
+    node.z = radius * Math.cos(phi);
+  });
+  return { nodes, links };
+};
+
 // 图谱组件
 const KnowledgeGraph = ({
   data,
@@ -92,11 +145,8 @@ const KnowledgeGraph = ({
 
   useEffect(() => {
     let animationId;
-    let lastAutoHoverId = null;
-
     function autoHighlight() {
       if (!graphRef.current) return;
-      // 如果鼠标悬停则不自动高亮
       if (hoveredByMouse.current) {
         animationId = requestAnimationFrame(autoHighlight);
         return;
@@ -107,12 +157,10 @@ const KnowledgeGraph = ({
         animationId = requestAnimationFrame(autoHighlight);
         return;
       }
-      // 相机朝向
       const camPos = camera.position;
       const camDir = new THREE.Vector3();
       camera.getWorldDirection(camDir);
 
-      // 找到视野中心最近的节点
       let minAngle = Infinity;
       let closestNode = null;
       nodes.forEach((node) => {
@@ -124,24 +172,8 @@ const KnowledgeGraph = ({
         }
       });
 
-      // 只在节点变化时才触发
-      if (closestNode && closestNode.id !== lastAutoHoverId) {
-        lastAutoHoverId = closestNode.id;
-        // 解析主编号和子编号
-        let main = '', sub = '', current = '';
-        if (closestNode.type === 'core') {
-          const match = closestNode.name.match(/(\d+)/);
-          main = match ? match[1] : '';
-          current = main;
-        } else if (closestNode.type === 'sub') {
-          const match = closestNode.name.match(/(\d+)-(\d+)/);
-          if (match) {
-            main = match[1];
-            sub = match[2];
-            current = `${main}-${sub}`;
-          }
-        }
-        setHoveredNodeInfo({ main, sub, current, type: closestNode.type });
+      if (closestNode) {
+        setHoveredNodeInfo({ id: closestNode.id, type: closestNode.type });
       }
       animationId = requestAnimationFrame(autoHighlight);
     }
@@ -181,24 +213,10 @@ const KnowledgeGraph = ({
           alert(`你点击了: ${node.name}`);
         })
         .onNodeHover((node) => {
-          // 鼠标悬停优先
           hoveredByMouse.current = !!node;
           if (setHoveredNodeInfo) {
-            if (node && node.name) {
-              let main = '', sub = '', current = '';
-              if (node.type === 'core') {
-                const match = node.name.match(/(\d+)/);
-                main = match ? match[1] : '';
-                current = main;
-              } else if (node.type === 'sub') {
-                const match = node.name.match(/(\d+)-(\d+)/);
-                if (match) {
-                  main = match[1];
-                  sub = match[2];
-                  current = `${main}-${sub}`;
-                }
-              }
-              setHoveredNodeInfo({ main, sub, current, type: node.type });
+            if (node) {
+              setHoveredNodeInfo({ id: node.id, type: node.type });
             } else {
               setHoveredNodeInfo(null);
             }
@@ -209,7 +227,7 @@ const KnowledgeGraph = ({
       light.position.set(0, 10, 10);
       graphRef.current.scene().add(light);
 
-      graphRef.current.cameraPosition({ z: 500 });
+      graphRef.current.cameraPosition({ z: 600 });
     } else {
       graphRef.current.graphData(data);
       graphRef.current.d3Force('charge').strength(chargeStrength);
@@ -230,21 +248,8 @@ const KnowledgeGraph = ({
       graphRef.current.onNodeHover((node) => {
         hoveredByMouse.current = !!node;
         if (setHoveredNodeInfo) {
-          if (node && node.name) {
-            let main = '', sub = '', current = '';
-            if (node.type === 'core') {
-              const match = node.name.match(/(\d+)/);
-              main = match ? match[1] : '';
-              current = main;
-            } else if (node.type === 'sub') {
-              const match = node.name.match(/(\d+)-(\d+)/);
-              if (match) {
-                main = match[1];
-                sub = match[2];
-                current = `${main}-${sub}`;
-              }
-            }
-            setHoveredNodeInfo({ main, sub, current, type: node.type });
+          if (node) {
+            setHoveredNodeInfo({ id: node.id, type: node.type });
           } else {
             setHoveredNodeInfo(null);
           }
@@ -274,99 +279,108 @@ const App = () => {
   );
   const [hoveredNodeInfo, setHoveredNodeInfo] = useState(null);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [identity, setIdentity] = useState('小明 CS本科生');
 
-  const handleGenerate = () => {
-    setData(
-      generateGraphData(numCoreNodes, numSubNodes, coreNodeSizeRange, subNodeSizeRange)
-    );
+  // 新增：加载时自动生成AI任务数据
+  useEffect(() => {
+    handleGenerate();
+    // eslint-disable-next-line
+  }, []);
+
+  // 新增：AI生成任务并构建图谱
+  const handleGenerate = async () => {
+    try {
+      // 调用你的后端API（FastAPI等）
+      const res = await fetch(
+        `http://localhost:8000/generate_tasks?identity=${encodeURIComponent(identity)}&coreNum=${numCoreNodes}&subNum=${numSubNodes}`
+      );
+      const result = await res.json();
+      if (result && Array.isArray(result.core_tasks) && Array.isArray(result.sub_tasks_list)) {
+        setData(
+          buildGraphDataFromTasks(
+            result.core_tasks,
+            result.sub_tasks_list,
+            coreNodeSizeRange,
+            subNodeSizeRange
+          )
+        );
+      } else {
+        // 失败时降级为本地生成
+        setData(
+          generateGraphData(numCoreNodes, numSubNodes, coreNodeSizeRange, subNodeSizeRange)
+        );
+      }
+    } catch (e) {
+      setData(
+        generateGraphData(numCoreNodes, numSubNodes, coreNodeSizeRange, subNodeSizeRange)
+      );
+    }
   };
 
-  const handleSnapshot = (snapshotData) => {
-    setSnapshots((prev) => [
-      ...prev,
-      {
-        timestamp: new Date().toLocaleString('zh-CN'),
-        data: snapshotData.data,
-        camera: snapshotData.camera,
-        params: {
-          numCoreNodes,
-          numSubNodes,
-          chargeStrength,
-          linkDistance,
-          nodeOpacity,
-          coreNodeSizeRange,
-          subNodeSizeRange,
-        },
-      },
-    ]);
-  };
+  // 标签渲染（已被替换为更通用的主节点+所有子节点阶梯排布逻辑）
+  // 现在的 renderTagTabs 逻辑如下，已不再用 main/sub/current，而是直接用节点 id/type，显示主节点和所有同组子节点：
+  // 这样可以适配 AI 生成的真实内容和阶梯排布、进度条不抖动。
 
-  // 标签渲染
   const renderTagTabs = () => {
-    if (!hoveredNodeInfo || !hoveredNodeInfo.main) return null;
-    const { main, sub, current, type } = hoveredNodeInfo;
-    // 查找主球颜色
+    if (!hoveredNodeInfo) return null;
+    const node = data.nodes.find(n => n.id === hoveredNodeInfo.id);
+    if (!node) return null;
+
     let mainColor = '#FFD93D';
-    const mainNode = data.nodes.find(n => n.type === 'core' && n.name.endsWith(main));
-    if (mainNode) mainColor = mainNode.color;
+    if (node.type === 'core') mainColor = node.color;
+    if (node.type === 'sub') {
+      const coreId = node.parentId || node.id.split('_sub_')[0];
+      const coreNode = data.nodes.find(n => n.id === coreId);
+      if (coreNode) mainColor = coreNode.color;
+    }
 
-    // 生成主标签
-    const tags = [{
-      label: main,
-      key: main,
-      highlight: type === 'core' || !sub,
-      level: 0,
-      color: mainColor,
-      progress: Math.random(), // 主标签进度
-    }];
-
-    // 生成当前子标签
-    let subNum = Number(sub);
-    if (subNum) {
+    const tags = [];
+    if (node.type === 'core') {
       tags.push({
-        label: `${main}-${subNum}`,
-        key: `${main}-${subNum}`,
+        label: node.name,
+        key: node.id,
         highlight: true,
-        level: 1,
+        level: 0,
         color: mainColor,
-        progress: Math.random(),
+        progress: node.progress,
       });
-      // 随机生成几个不同的子标签（不包括当前subNum和之前的）
-      const maxSub = data.nodes
-        .filter(n => n.type === 'sub' && n.name.startsWith(`子知识点 ${main}-`))
-        .map(n => {
-          const m = n.name.match(/-(\d+)$/);
-          return m ? Number(m[1]) : null;
-        })
-        .filter(Boolean)
-        .reduce((a, b) => Math.max(a, b), 0);
-
-      // 可选的sub编号
-      const availableSubs = [];
-      for (let i = 1; i <= maxSub; i++) {
-        if (i !== subNum && i > subNum) availableSubs.push(i);
-      }
-      // 随机选2~4个
-      const randomSubs = [];
-      const count = Math.min(availableSubs.length, Math.floor(Math.random() * 3) + 2);
-      while (randomSubs.length < count && availableSubs.length > 0) {
-        const idx = Math.floor(Math.random() * availableSubs.length);
-        randomSubs.push(availableSubs[idx]);
-        availableSubs.splice(idx, 1);
-      }
-      randomSubs.forEach(i => {
+      const subNodes = data.nodes.filter(n => n.type === 'sub' && n.parentId === node.id);
+      subNodes.forEach(subNode => {
         tags.push({
-          label: `${main}-${i}`,
-          key: `${main}-${i}`,
+          label: subNode.name,
+          key: subNode.id,
           highlight: false,
           level: 1,
           color: mainColor,
-          progress: Math.random(),
+          progress: subNode.progress,
+        });
+      });
+    } else if (node.type === 'sub') {
+      const coreId = node.parentId || node.id.split('_sub_')[0];
+      const coreNode = data.nodes.find(n => n.id === coreId);
+      if (coreNode) {
+        tags.push({
+          label: coreNode.name,
+          key: coreNode.id,
+          highlight: false,
+          level: 0,
+          color: mainColor,
+          progress: coreNode.progress,
+        });
+      }
+      const subNodes = data.nodes.filter(n => n.type === 'sub' && n.parentId === coreId);
+      subNodes.forEach(subNode => {
+        tags.push({
+          label: subNode.name,
+          key: subNode.id,
+          highlight: subNode.id === node.id,
+          level: 1,
+          color: mainColor,
+          progress: subNode.progress,
         });
       });
     }
 
-    // 阶梯排布+进度条
     return (
       <div style={{
       display: 'flex',
@@ -375,7 +389,7 @@ const App = () => {
       gap: 12,
       minWidth: 60,
       }}>
-      {tags.map((tag, idx) => (
+      {tags.map((tag) => (
         <div
         key={tag.key}
         style={{
@@ -415,7 +429,7 @@ const App = () => {
           left: 0,
           bottom: 0,
           height: 6,
-          width: `${Math.round(tag.progress * 100)}%`,
+          width: `${Math.round((tag.progress || 0) * 100)}%`,
           background: '#22c55e',
           borderRadius: 3,
           transition: 'width 0.3s',
@@ -476,6 +490,17 @@ const App = () => {
           }}
         >
           <h2 className="text-xl font-bold mb-4">调控面板</h2>
+          {/* 新增身份输入 */}
+          <div className="mb-4">
+            <label className="block mb-1">身份（如“小明 CS本科生”）</label>
+            <input
+              type="text"
+              value={identity}
+              onChange={e => setIdentity(e.target.value)}
+              className="w-full px-2 py-1 rounded text-black"
+              placeholder="请输入身份"
+            />
+          </div>
           <div className="mb-4">
             <label className="block mb-1">核心节点数: {numCoreNodes}</label>
             <input
@@ -578,7 +603,6 @@ const App = () => {
           linkDistance={linkDistance}
           nodeOpacity={nodeOpacity}
           setHoveredNodeInfo={setHoveredNodeInfo}
-          onSnapshot={handleSnapshot}
         />
       </div>
     </div>
