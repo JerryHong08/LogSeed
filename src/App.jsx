@@ -591,7 +591,7 @@ const App = () => {
             boxShadow: !useSample ? '0 2px 8px #FFD93D44' : 'none'
           }}
         >
-          初始化(请联系Jerry为你开启)
+          身份初始化定制(请联系Jerry为你开启)
         </button>
         <button
           onClick={() => setUseSample(true)}
