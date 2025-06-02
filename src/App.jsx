@@ -302,6 +302,62 @@ const App = () => {
   const [showIdentityModal, setShowIdentityModal] = useState(true);
   const [loading, setLoading] = useState(false);
   const [panelCollapsed, setPanelCollapsed] = useState(true); // 默认合上
+  const [useSample, setUseSample] = useState(false);
+
+  const SAMPLE_CORE_TASKS = [
+    "编程基础",
+    "数据结构与算法",
+    "计算机网络",
+    "操作系统",
+    "数据库系统"
+  ];
+  const SAMPLE_SUB_TASKS_LIST = [
+    [
+      "掌握Python基础语法",
+      "理解变量与数据类型",
+      "掌握条件与循环控制",
+      "学习函数定义与调用",
+      "掌握模块与库的使用",
+      "理解面向对象编程",
+      "实践项目开发"
+    ],
+    [
+      "掌握线性表",
+      "理解栈与队列",
+      "掌握树与图",
+      "理解排序算法",
+      "掌握查找算法",
+      "理解动态规划",
+      "实践算法题解"
+    ],
+    [
+      "理解网络分层模型",
+      "掌握TCP/IP协议",
+      "理解HTTP/HTTPS协议",
+      "掌握DNS与DHCP",
+      "理解路由与交换",
+      "掌握网络安全基础",
+      "实践网络配置与调试"
+    ],
+    [
+      "理解进程与线程",
+      "掌握内存管理",
+      "理解文件系统",
+      "掌握并发与同步",
+      "理解死锁与饥饿",
+      "掌握I/O管理",
+      "实践操作系统配置与优化"
+    ],
+    [
+      "理解关系模型与SQL",
+      "掌握DDL与DML",
+      "理解事务与锁",
+      "掌握索引与视图",
+      "理解存储过程与触发器",
+      "掌握数据库设计",
+      "实践数据库管理与优化"
+    ]
+  ];
 
   // 首次身份输入提交
   const handleIdentitySubmit = async (e) => {
@@ -318,6 +374,18 @@ const App = () => {
   // AI生成任务并构建图谱
   const handleGenerate = async (customIdentity) => {
     setLoading(true);
+    if (useSample) {
+      setData(
+        buildGraphDataFromTasks(
+          SAMPLE_CORE_TASKS,
+          SAMPLE_SUB_TASKS_LIST,
+          coreNodeSizeRange,
+          subNodeSizeRange
+        )
+      );
+      setLoading(false);
+      return;
+    }
     const idt = typeof customIdentity === 'string' ? customIdentity : identity;
     try {
       const res = await fetch(
@@ -334,10 +402,10 @@ const App = () => {
           )
         );
       } else {
-        setData(null); // 失败时不显示任何图谱
+        setData(null);
       }
     } catch (e) {
-      setData(null); // 失败时不显示任何图谱
+      setData(null);
     }
     setLoading(false);
   };
@@ -350,10 +418,22 @@ const App = () => {
     setLoading(false);
   };
 
-  // 页面首次加载不再自动生成，等身份输入
+  // 页面首次加载时，如果 useSample 为 true，直接加载样例
   useEffect(() => {
+    if (useSample) {
+      setData(
+        buildGraphDataFromTasks(
+          SAMPLE_CORE_TASKS,
+          SAMPLE_SUB_TASKS_LIST,
+          coreNodeSizeRange,
+          subNodeSizeRange
+        )
+      );
+      setShowIdentityModal(false);
+      setLoading(false);
+    }
     // ...不再自动调用 handleGenerate...
-  }, []);
+  }, [useSample, coreNodeSizeRange, subNodeSizeRange]);
 
   // 标签渲染
   const renderTagTabs = () => {
@@ -483,6 +563,53 @@ const App = () => {
 
   return (
     <div className="flex h-screen bg-gray-900 text-white">
+      {/* 顶部切换按钮 */}
+      <div style={{
+        position: 'fixed',
+        top: 12,
+        left: 24,
+        zIndex: 1001,
+        display: 'flex',
+        gap: 12,
+      }}>
+        <button
+          onClick={() => {
+            setUseSample(false);
+            setShowIdentityModal(true); // 回到身份输入
+            setData(null); // 清空数据
+            setIdentity('');
+          }}
+          style={{
+            background: !useSample ? '#FFD93D' : '#333',
+            color: !useSample ? '#222' : '#FFD93D',
+            border: 'none',
+            borderRadius: 8,
+            padding: '6px 18px',
+            fontWeight: 'bold',
+            fontSize: 16,
+            cursor: 'pointer',
+            boxShadow: !useSample ? '0 2px 8px #FFD93D44' : 'none'
+          }}
+        >
+          初始化(请联系Jerry为你开启)
+        </button>
+        <button
+          onClick={() => setUseSample(true)}
+          style={{
+            background: useSample ? '#FFD93D' : '#333',
+            color: useSample ? '#222' : '#FFD93D',
+            border: 'none',
+            borderRadius: 8,
+            padding: '6px 18px',
+            fontWeight: 'bold',
+            fontSize: 16,
+            cursor: 'pointer',
+            boxShadow: useSample ? '0 2px 8px #FFD93D44' : 'none'
+          }}
+        >
+          浏览样例
+        </button>
+      </div>
       {/* 身份输入弹窗 */}
       {showIdentityModal && (
         <div style={{
