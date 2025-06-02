@@ -502,8 +502,8 @@ const App = () => {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-end', // 右对齐
-        gap: 12,
-        minWidth: 60,
+        gap: 8, // 缩小间距
+        minWidth: 40,
       }}>
         {tags.map((tag) => (
           <div
@@ -511,21 +511,22 @@ const App = () => {
             style={{
               background: tag.highlight ? '#FFD93D' : tag.color,
               color: tag.highlight ? '#222' : '#fff',
-              padding: '8px 20px 8px 20px',
-              borderRadius: '16px 16px 0 16px',
+              padding: '4px 10px', // 缩小标签
+              borderRadius: '12px 12px 0 12px',
               fontWeight: 'bold',
-              fontSize: '1.1rem',
+              fontSize: '0.85rem', // 缩小字体
               boxShadow: tag.highlight ? '0 2px 8px rgba(0,0,0,0.18)' : 'none',
-              minWidth: 70,
+              minWidth: 40,
               textAlign: tag.level === 1 ? 'right' : 'left', // 主标签左对齐，子标签右对齐
-              marginLeft: tag.level === 0 ? 0 : 32,
-              marginRight: tag.level === 1 ? 0 : 32,
+              marginLeft: tag.level === 0 ? 0 : 16,
+              marginRight: tag.level === 1 ? 0 : 16,
               border: tag.highlight ? '2px solid #FFD93D' : '2px solid transparent',
               transition: 'all 0.2s',
               zIndex: tag.highlight ? 2 : 1,
               position: 'relative',
               overflow: 'hidden',
               alignSelf: tag.level === 1 ? 'flex-end' : 'flex-start', // 子标签右对齐
+              opacity: 0.7, // 标签整体透明度
             }}
           >
             {/* 进度条底色 */}
@@ -538,6 +539,7 @@ const App = () => {
                 width: '100%',
                 background: 'rgba(255,255,255,0.15)',
                 borderRadius: 3,
+                opacity: 0.7, // 进度条底色透明度
               }}
             />
             {/* 进度条前景 */}
@@ -551,10 +553,10 @@ const App = () => {
                 background: '#22c55e',
                 borderRadius: 3,
                 transition: 'width 0.3s',
-                opacity: 0.85,
+                opacity: 0.7, // 进度条前景透明度
               }}
             />
-            <span style={{ position: 'relative', zIndex: 2 }}>{tag.label}</span>
+            <span style={{ position: 'relative', zIndex: 2, opacity: 0.7 }}>{tag.label}</span>
           </div>
         ))}
       </div>
@@ -568,30 +570,32 @@ const App = () => {
         position: 'fixed',
         top: 12,
         left: 24,
+        left: panelCollapsed ? 24 : 272, // 跟随侧边栏宽度移动，w-6=24px, w-64=256px+间距
         zIndex: 1001,
         display: 'flex',
-        gap: 12,
+        gap: 8, // 缩小间距
       }}>
         <button
           onClick={() => {
             setUseSample(false);
-            setShowIdentityModal(true); // 回到身份输入
-            setData(null); // 清空数据
+            setShowIdentityModal(true);
+            setData(null);
             setIdentity('');
           }}
           style={{
             background: !useSample ? '#FFD93D' : '#333',
             color: !useSample ? '#222' : '#FFD93D',
             border: 'none',
-            borderRadius: 8,
-            padding: '6px 18px',
+            borderRadius: 6,
+            padding: '3px 10px', // 缩小按钮
             fontWeight: 'bold',
-            fontSize: 16,
+            fontSize: 12,        // 缩小字体
             cursor: 'pointer',
-            boxShadow: !useSample ? '0 2px 8px #FFD93D44' : 'none'
+            boxShadow: !useSample ? '0 2px 8px #FFD93D44' : 'none',
+            opacity: 0.7,        // 按钮透明度
           }}
         >
-          身份初始化定制(请联系Jerry为你开启)
+          身份初始化
         </button>
         <button
           onClick={() => setUseSample(true)}
@@ -599,12 +603,13 @@ const App = () => {
             background: useSample ? '#FFD93D' : '#333',
             color: useSample ? '#222' : '#FFD93D',
             border: 'none',
-            borderRadius: 8,
-            padding: '6px 18px',
+            borderRadius: 6,
+            padding: '3px 10px', // 缩小按钮
             fontWeight: 'bold',
-            fontSize: 16,
+            fontSize: 12,        // 缩小字体
             cursor: 'pointer',
-            boxShadow: useSample ? '0 2px 8px #FFD93D44' : 'none'
+            boxShadow: useSample ? '0 2px 8px #FFD93D44' : 'none',
+            opacity: 0.7,        // 按钮透明度
           }}
         >
           浏览样例
@@ -688,13 +693,13 @@ const App = () => {
           style={{
             width: 24,
             height: 32,
+            left: panelCollapsed ? 24 : 256, // 跟随侧边栏宽度移动，w-6=24px, w-64=256px+间距
             background: '#222',
             color: '#FFD93D',
             border: 'none',
             borderRadius: '0 0 8px 0',
             position: 'absolute',
-            left: panelCollapsed ? 0 : 256,
-            top: 32,
+            top: 42,
             zIndex: 100,
             cursor: 'pointer',
             transition: 'left 0.3s',
